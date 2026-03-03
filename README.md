@@ -7,6 +7,16 @@
 ### Production-grade Customer Support Ticket Management System
 
 *Multi-role · Full-stack · Background queues · Google OAuth · Real-time analytics*
+
+---
+
+## Live Demo
+
+| Service | URL |
+| :--- | :--- |
+| **Frontend** | https://ticket-management-theta.vercel.app |
+| **Backend API** | https://ticket-management-pp8l.onrender.com/api/health |
+
 ---
 
 ## Table of Contents
