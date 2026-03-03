@@ -1,13 +1,14 @@
 import { Router, Response } from 'express';
 import { query } from '../db/connection';
 import { authenticate } from '../middleware/authenticate';
+import { authorize } from '../middleware/authorize';
 import { AuthRequest } from '../types';
 
 const router = Router();
 router.use(authenticate);
 
 // --- GET /api/dashboard/customer ---
-router.get('/customer', async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/customer', authorize('customer', 'admin'), async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const result = await query(
@@ -27,7 +28,7 @@ router.get('/customer', async (req: AuthRequest, res: Response): Promise<void> =
 });
 
 // --- GET /api/dashboard/agent ---
-router.get('/agent', async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/agent', authorize('agent_l1', 'agent_l2', 'agent_l3', 'admin'), async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const summary = await query(
@@ -58,7 +59,7 @@ router.get('/agent', async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 // --- GET /api/dashboard/admin ---
-router.get('/admin', async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get('/admin', authorize('admin'), async (_req: AuthRequest, res: Response): Promise<void> => {
   const totals = await query(`
     SELECT
       COUNT(*) AS total,
