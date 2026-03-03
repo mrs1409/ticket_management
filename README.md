@@ -1,535 +1,432 @@
-# E-Commerce Support Ticket Management System
+﻿<!-- ============================================================
+     TICKETDESK  -  README
+     ============================================================ -->
 
-A production-ready, full-stack customer support ticket management system built for e-commerce platforms. Supports multi-tier agent escalation (L1 → L2 → L3), async job processing with BullMQ, role-based access control, Google OAuth, audit logging, and real-time dashboards.
+# TicketDesk
+
+### Production-grade Customer Support Ticket Management System
+
+*Multi-role · Full-stack · Background queues · Google OAuth · Real-time analytics*
+---
+
+## Table of Contents
+
+- [What is TicketDesk?](#what-is-ticketdesk)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Environment Variables](#environment-variables)
+- [Test Credentials](#test-credentials)
+- [API Reference](#api-reference)
+- [Role Capabilities](#role-capabilities)
+- [Background Workers](#background-workers)
+- [Security](#security)
+- [Deployment](#deployment)
+- [Project Structure](#project-structure)
+
+---
+
+## What is TicketDesk?
+
+TicketDesk is a **multi-role customer support platform** where:
+
+- **Customers** submit support tickets linked to their orders
+- **Agents** (L1 to L2 to L3) triage, escalate, and resolve tickets
+- **Admins** have full visibility via analytics, audit trails, and user management
+
+Everything runs on a REST API with JWT authentication, BullMQ background workers for auto-escalation, and real-time email notifications at each ticket lifecycle stage.
 
 ---
 
 ## Architecture
 
 ```
-tick_management/
-├── backend/           Express.js + TypeScript REST API
-│   ├── src/
-│   │   ├── routes/    API route handlers
-│   │   ├── workers/   BullMQ job workers
-│   │   ├── queues/    BullMQ queue definitions
-│   │   ├── db/        PostgreSQL connection, migrations, seeds
-│   │   ├── middleware/ authenticate, authorize, error handling
-│   │   ├── utils/     auditLog, tokens, priority, assignment, email
-│   │   └── types/     TypeScript interfaces + Express augmentation
-│   └── ...
-└── frontend/          Next.js 14 App Router + TypeScript + Tailwind CSS
-    ├── app/
-    │   ├── (customer)/  Customer portal pages
-    │   ├── (agent)/     Agent portal pages
-    │   ├── (admin)/     Admin portal pages
-    │   └── auth/        OAuth callback
-    ├── lib/api.ts       Axios instance with auto-refresh
-    └── store/           Zustand auth store
++-------------------------------------------------------------------+
+|                         CLIENT BROWSER                            |
+|                   Next.js 15 (App Router)                         |
+|   Landing --> Login / Register --> Dashboard (per role)           |
+|             Customer  |  Agent L1/L2/L3  |  Admin                |
++----------------------+--------------------------------------------+
+                       |  HTTPS / REST   (Authorization: Bearer)
++----------------------v--------------------------------------------+
+|                     EXPRESS API  :5000                            |
+|                                                                   |
+|   /auth  /tickets  /escalations  /dashboard  /analytics          |
+|   /agents  /orders  /audit  /jobs  /admin                        |
+|                                                                   |
+|   Passport.js (Local + Google OAuth 2.0)                         |
+|   JWT (Access 15 min / Refresh 7 d) + Token Blacklist            |
+|   RBAC Middleware  .  Helmet  .  Rate Limiter                     |
++------+-------------------------------------------+---------------+
+       |                                           |
++------v----------+                  +-------------v--------------+
+|  Neon Postgres  |                  |    Upstash Redis           |
+|  (pg pool)      |                  |  Sessions . Blacklist      |
+|  10 tables      |                  |  BullMQ Queues . SLA Rules |
++-----------------+                  +-------------+--------------+
+                                                   |
+                                       +-----------v--------------+
+                                       |     BullMQ Workers       |
+                                       |   ticket-classification  |
+                                       |   auto-escalation (1h)   |
+                                       |   email-notifications    |
+                                       |   cleanup-archive (24h)  |
+                                       +--------------------------+
 ```
 
 ---
 
-## Local Setup
+## Features
+
+|  #  | Area                 | Description                                                                                    |
+| :-: | :------------------- | :--------------------------------------------------------------------------------------------- |
+|  1  | **Authentication**   | Email/password + Google OAuth 2.0; JWT access (15 min) + refresh (7 d); blacklist on logout   |
+|  2  | **Role-Based Access**| 5 roles: `customer` `agent_l1` `agent_l2` `agent_l3` `admin` — enforced on every route        |
+|  3  | **Ticket Lifecycle** | Create → auto-priority → auto-assign → escalate (L1 to L2 to L3) → resolve                   |
+|  4  | **Priority Engine**  | Keyword matching maps ticket description to Low / Medium / High / Critical automatically       |
+|  5  | **SLA Escalation**   | BullMQ cron every hour; auto-escalates tickets past configurable time thresholds               |
+|  6  | **Email Alerts**     | Nodemailer on ticket create, assignment, and resolution (Ethereal in dev)                      |
+|  7  | **Analytics**        | Daily volume, by-priority breakdown, average resolution time, escalation rate                  |
+|  8  | **Audit Logs**       | Immutable, append-only log of every ticket state change and user action                        |
+|  9  | **Admin Panel**      | Manage users (role + active status), view all tickets, retry failed background jobs            |
+| 10  | **Test Suite**       | 46 Jest / ts-jest tests covering priority detection, JWT logic, and SLA escalation rules       |
+
+---
+
+## Tech Stack
+
+### Backend
+
+| Layer              | Technology                                             |
+| :----------------- | :----------------------------------------------------- |
+| Runtime            | Node.js 20 + TypeScript 5                             |
+| Framework          | Express 4                                             |
+| Database           | PostgreSQL 16 via Neon (`pg` pool)                    |
+| Cache and Queues   | Redis via Upstash (`ioredis` + BullMQ)                |
+| Authentication     | Passport.js — Local strategy + Google OAuth 2.0, JWT  |
+| Email              | Nodemailer (Ethereal dev / SMTP prod)                 |
+| Testing            | Jest + ts-jest (46 tests)                             |
+| Security           | Helmet, express-rate-limit, CORS, parameterized SQL   |
+
+### Frontend
+
+| Layer              | Technology                                             |
+| :----------------- | :----------------------------------------------------- |
+| Framework          | Next.js 15 — App Router, Turbopack                    |
+| Language           | TypeScript 5                                          |
+| State Management   | Zustand                                               |
+| HTTP Client        | Axios with auto refresh-token interceptor             |
+| Styling            | Tailwind CSS v4                                       |
+| UI Components      | Lucide React, react-hot-toast, Recharts               |
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- Node.js v18+
-- PostgreSQL 14+ (local or Neon cloud)
-- Redis 6+ (local or Upstash cloud)
-- Git
 
-### 1. Clone the repository
+- Node.js 20+
+- [Neon](https://neon.tech) PostgreSQL (or local Postgres)
+- [Upstash](https://upstash.com) Redis (or local Redis)
+
+---
+
+### 1. Clone the repo
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/your-username/tick_management.git
 cd tick_management
 ```
 
-### 2. Backend setup
+---
+
+### 2. Set up the Backend
 
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env with your DB, Redis, JWT secrets (see Environment Variables section)
-
-npm install
-npm run migrate    # Creates all tables + enums
-npm run seed       # Seeds 7 test users, sample orders, tickets
-npm run dev        # Start dev server on http://localhost:5000
+# Fill in all values - see Environment Variables section
 ```
 
-To also start the BullMQ workers (required for queue processing):
+```bash
+npm install
+npm run build
+npm run migrate    # Creates all tables and enums in your DB
+npm run seed       # Seeds 7 test users, sample orders, and tickets
+npm run dev        # Dev server at http://localhost:5000
+```
+
+In a **second terminal**, start the background workers:
 
 ```bash
 npm run worker
 ```
 
-To run the unit test suite:
+Run the test suite:
 
 ```bash
-npm test              # Run all tests with coverage report
-npm run test:watch    # Watch mode for development
+npm test              # Full suite with coverage
+npm run test:watch    # Watch mode
 ```
 
-> **Test coverage:** 46 tests across 3 suites — `priority`, `tokens`, `escalation logic` — targeting 60%+ line coverage.
+---
 
-
-### 3. Frontend setup
+### 3. Set up the Frontend
 
 ```bash
-cd ../frontend
-cp .env.local.example .env.local   # or create manually — see below
+cd frontend
+
+# Create the env file
+echo "NEXT_PUBLIC_API_URL=http://localhost:5000/api" > .env.local
+
 npm install
-npm run dev        # Start Next.js on http://localhost:3000
+npm run dev    # Next.js at http://localhost:3000
 ```
 
 ---
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### `backend/.env`
 
-| Variable | Description | Example |
-|---|---|---|
-| `PORT` | API server port | `5000` |
-| `NODE_ENV` | Environment | `development` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@localhost:5432/ticketdb` |
-| `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
-| `JWT_ACCESS_SECRET` | Secret for signing access tokens | `your-strong-secret-here` |
-| `JWT_REFRESH_SECRET` | Secret for signing refresh tokens | `another-strong-secret` |
-| `FRONTEND_URL` | Allowed CORS origin | `http://localhost:3000` |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | from Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | from Google Cloud Console |
-| `GOOGLE_CALLBACK_URL` | OAuth redirect URI | `http://localhost:5000/api/auth/oauth/google/callback` |
-| `SMTP_HOST` | SMTP host (leave blank for Ethereal auto) | `smtp.ethereal.email` |
-| `SMTP_PORT` | SMTP port | `587` |
-| `SMTP_USER` | SMTP username | `test@ethereal.email` |
-| `SMTP_PASS` | SMTP password | `ethereal-password` |
-| `SMTP_FROM` | From address for emails | `noreply@ticketapp.com` |
+| Variable               | Description                                      | Example Value                                                |
+| :--------------------- | :----------------------------------------------- | :----------------------------------------------------------- |
+| `PORT`                 | API server port                                  | `5000`                                                       |
+| `NODE_ENV`             | Runtime environment                              | `development`                                                |
+| `DATABASE_URL`         | PostgreSQL connection string                     | `postgres://user:pass@host/db?sslmode=require`               |
+| `REDIS_URL`            | Redis connection string                          | `rediss://default:pass@host:6379`                            |
+| `JWT_ACCESS_SECRET`    | Secret for short-lived access tokens             | any long random string                                       |
+| `JWT_REFRESH_SECRET`   | Secret for refresh tokens — **must differ**      | another long random string                                   |
+| `FRONTEND_URL`         | CORS allowed origin                              | `http://localhost:3000`                                      |
+| `GOOGLE_CLIENT_ID`     | Google OAuth2 client ID                          | from Google Cloud Console                                    |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth2 client secret                      | from Google Cloud Console                                    |
+| `GOOGLE_CALLBACK_URL`  | OAuth redirect URI                               | `http://localhost:5000/api/auth/oauth/google/callback`       |
+| `SMTP_HOST`            | SMTP server host                                 | `smtp.ethereal.email`                                        |
+| `SMTP_PORT`            | SMTP server port                                 | `587`                                                        |
+| `SMTP_USER`            | SMTP username                                    | —                                                            |
+| `SMTP_PASS`            | SMTP password                                    | —                                                            |
+| `SMTP_FROM`            | Sender address                                   | `noreply@ticketapp.com`                                      |
 
-### Frontend (`frontend/.env.local`)
+### `frontend/.env.local`
 
-| Variable | Description | Example |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:5000/api` |
+| Variable                | Description            | Example Value                   |
+| :---------------------- | :--------------------- | :------------------------------ |
+| `NEXT_PUBLIC_API_URL`   | Backend API base URL   | `http://localhost:5000/api`     |
 
 ---
 
 ## Test Credentials
 
-All credentials work on both local and live demo:
+> Use any of these on a local or live instance after running `npm run seed`.
 
-| Role | Email | Password |
-|---|---|---|
-| **Admin** | `admin@ticketapp.com` | `Admin@123` |
-| **Agent L1** | `agent.l1a@ticketapp.com` | `AgentL1@123` |
-| **Agent L1 (B)** | `agent.l1b@ticketapp.com` | `AgentL1@123` |
-| **Agent L2** | `agent.l2@ticketapp.com` | `AgentL2@123` |
-| **Agent L3** | `agent.l3@ticketapp.com` | `AgentL3@123` |
-| **Customer** | `customer1@example.com` | `Customer@123` |
-| **Customer (B)** | `customer2@example.com` | `Customer@123` |
-
----
-
-## Live Demo
-
-| Service | URL |
-|---|---|
-| Frontend (Vercel) | _Update after deployment_ |
-| Backend API (Render) | _Update after deployment_ |
+| Role               | Email                         | Password       |
+| :----------------- | :---------------------------- | :------------: |
+| **Admin**          | `admin@ticketapp.com`         | `Admin@123`    |
+| **Agent - L1 (A)** | `agent.l1a@ticketapp.com`     | `AgentL1@123`  |
+| **Agent - L1 (B)** | `agent.l1b@ticketapp.com`     | `AgentL1@123`  |
+| **Agent - L2**     | `agent.l2@ticketapp.com`      | `AgentL2@123`  |
+| **Agent - L3**     | `agent.l3@ticketapp.com`      | `AgentL3@123`  |
+| **Customer (A)**   | `customer1@example.com`       | `Customer@123` |
+| **Customer (B)**   | `customer2@example.com`       | `Customer@123` |
 
 ---
 
-## API Documentation
+## API Reference
 
-Base URL: `https://<backend-url>/api`
+**Base URL:** `http://localhost:5000/api`
 
-All authenticated endpoints require: `Authorization: Bearer <accessToken>`
+All protected endpoints require the header:
 
----
-
-### Auth Routes
-
-#### `POST /auth/register`
-Create a new customer account.
-
-**Body:**
-```json
-{ "name": "Jane Doe", "email": "jane@example.com", "password": "Password@123" }
+```
+Authorization: Bearer <accessToken>
 ```
 
-**Response:** `201` → `{ user, accessToken, refreshToken }`
+---
+
+### Auth `/auth`
+
+| Method   | Endpoint                       | Protected | Description                              |
+| :------: | :----------------------------- | :-------: | :--------------------------------------- |
+| `POST`   | `/auth/register`               | —         | Register a new customer account          |
+| `POST`   | `/auth/login`                  | —         | Email + password login                   |
+| `GET`    | `/auth/oauth/google`           | —         | Redirect to Google OAuth consent screen  |
+| `GET`    | `/auth/oauth/google/callback`  | —         | Handle Google OAuth callback             |
+| `POST`   | `/auth/refresh`                | —         | Rotate both access and refresh tokens    |
+| `POST`   | `/auth/logout`                 | Yes       | Blacklist tokens and end session         |
+| `GET`    | `/auth/me`                     | Yes       | Return the currently authenticated user  |
 
 ---
 
-#### `POST /auth/login`
-Authenticate with email + password.
+### Tickets `/tickets`
 
-**Body:**
-```json
-{ "email": "jane@example.com", "password": "Password@123" }
-```
-
-**Response:** `200` → `{ user, accessToken, refreshToken }`
-
----
-
-#### `GET /auth/oauth/google`
-Redirect to Google OAuth consent screen.
-
----
-
-#### `GET /auth/oauth/google/callback`
-Google OAuth callback. Redirects to: `FRONTEND_URL/auth/callback?accessToken=...&refreshToken=...`
+| Method   | Endpoint                      | Protected     | Description                                           |
+| :------: | :---------------------------- | :-----------: | :---------------------------------------------------- |
+| `POST`   | `/tickets`                    | Customer      | Create ticket with auto-priority and auto-assign      |
+| `GET`    | `/tickets`                    | Any           | List tickets scoped by role; supports filters + pages |
+| `GET`    | `/tickets/:id`                | Any           | Full detail with messages and linked order            |
+| `PATCH`  | `/tickets/:id`                | Agent / Admin | Update status, priority, or assignee                  |
+| `POST`   | `/tickets/:id/messages`       | Any           | Post a message (agents can flag as internal)          |
+| `GET`    | `/tickets/:id/messages`       | Any           | Full thread (internal notes hidden from customers)    |
+| `POST`   | `/tickets/:id/escalate`       | Agent         | Escalate — L1 to L2, or L2 to L3                     |
+| `POST`   | `/tickets/:id/resolve`        | Agent / Admin | Mark the ticket as resolved                           |
+| `POST`   | `/tickets/:id/reassign`       | Agent / Admin | Reassign to a different agent                         |
+| `DELETE` | `/tickets/:id`                | Admin         | Soft-delete a ticket                                  |
 
 ---
 
-#### `POST /auth/refresh`
-Issue a new access token using a valid refresh token.
+### Escalations `/escalations`
 
-**Body:** `{ "refreshToken": "..." }`
-
-**Response:** `200` → `{ accessToken, refreshToken }`
-
----
-
-#### `POST /auth/logout`
-Invalidate current access token + delete refresh token.
-
-**Auth:** Required
-
-**Response:** `200` → `{ message: "Logged out successfully" }`
+| Method | Endpoint               | Protected     | Description                    |
+| :----: | :--------------------- | :-----------: | :----------------------------- |
+| `GET`  | `/escalations`         | Admin / Agent | Full escalation history        |
+| `GET`  | `/escalations/rules`   | Admin         | View current SLA thresholds    |
+| `POST` | `/escalations/rules`   | Admin         | Update SLA time thresholds     |
 
 ---
 
-#### `GET /auth/me`
-Get current authenticated user.
+### Dashboard and Analytics
 
-**Auth:** Required
-
-**Response:** `200` → `{ user: { id, email, name, role, is_active } }`
-
----
-
-### Ticket Routes
-
-#### `POST /tickets`
-Create a new ticket. Auto-assigns priority and agent.
-
-**Auth:** Customer only
-
-**Body:**
-```json
-{
-  "subject": "My order never arrived",
-  "description": "Order placed 2 weeks ago, not delivered",
-  "issue_type": "Delivery",
-  "order_id": "ORD-001"
-}
-```
-
-**Response:** `201` → `{ ticket }`
+| Method | Endpoint                | Protected     | Description                                    |
+| :----: | :---------------------- | :-----------: | :--------------------------------------------- |
+| `GET`  | `/dashboard/customer`   | Customer      | Personal ticket summary and stats              |
+| `GET`  | `/dashboard/agent`      | Agent         | Assigned-ticket summary and SLA status         |
+| `GET`  | `/dashboard/admin`      | Admin         | System-wide ticket and agent stats             |
+| `GET`  | `/analytics/tickets`    | Admin / Agent | Daily trend, by-priority counts, resolution time |
 
 ---
 
-#### `GET /tickets`
-List tickets. Customers see own; agents see assigned; admin sees all.
+### Admin and Agents
 
-**Auth:** Required
-
-**Query params:** `status`, `priority`, `order_id`, `from`, `to`, `page`, `limit`, `search`
-
-**Response:** `200` → `{ data: [...tickets], total, page, limit, totalPages }`
-
----
-
-#### `GET /tickets/:id`
-Get ticket detail with messages and linked order/payment info.
-
-**Auth:** Required (customer sees own ticket only)
-
-**Response:** `200` → `{ ticket, messages, order?, payment? }`
+| Method  | Endpoint             | Protected     | Description                            |
+| :-----: | :------------------- | :-----------: | :------------------------------------- |
+| `GET`   | `/admin/users`       | Admin         | Paginated list of all users            |
+| `PATCH` | `/admin/users/:id`   | Admin         | Change a user's role or active status  |
+| `GET`   | `/agents/workload`   | Admin / Agent | Count of open tickets per agent        |
 
 ---
 
-#### `PATCH /tickets/:id`
-Update ticket fields (status, assigned_to, priority).
+### Orders, Audit and Jobs
 
-**Auth:** Agent / Admin
-
-**Body:** `{ "status": "in_progress" }`
-
-**Response:** `200` → `{ ticket }`
-
----
-
-#### `POST /tickets/:id/messages`
-Add a message to a ticket thread.
-
-**Auth:** Required
-
-**Body:** `{ "message": "...", "is_internal": false }`
-
-**Response:** `201` → `{ message }`
+| Method | Endpoint                       | Protected                | Description                             |
+| :----: | :----------------------------- | :----------------------: | :-------------------------------------- |
+| `GET`  | `/orders/:orderId`             | Owner / Agent / Admin    | Order details                           |
+| `GET`  | `/orders/:orderId/payments`    | Owner / Agent / Admin    | Payment records for an order            |
+| `GET`  | `/audit/tickets/:id`           | Admin                    | Complete audit trail for a ticket       |
+| `GET`  | `/audit/users/:id`             | Admin                    | All recorded actions by a user          |
+| `GET`  | `/jobs/status/:jobId`          | Admin                    | BullMQ job status by ID                 |
+| `GET`  | `/jobs/failed`                 | Admin                    | All failed jobs across every queue      |
+| `POST` | `/jobs/retry/:jobId`           | Admin                    | Retry a specific failed job             |
 
 ---
 
-#### `GET /tickets/:id/messages`
-Get all messages. Internal messages hidden from customers.
+## Role Capabilities
 
-**Auth:** Required
-
-**Response:** `200` → `[...messages]`
-
----
-
-#### `POST /tickets/:id/escalate`
-Escalate ticket to next level (L1→L2, L2→L3).
-
-**Auth:** Agent only
-
-**Body:** `{ "reason": "Customer escalated via phone" }`
-
-**Response:** `200` → `{ ticket, escalation }`
+| Role        | What they can do                                                                                  |
+| :---------- | :------------------------------------------------------------------------------------------------ |
+| `customer`  | Create tickets for their own orders · view and reply to their own tickets · customer dashboard    |
+| `agent_l1`  | View assigned tickets · post messages · escalate to L2 · mark resolved                           |
+| `agent_l2`  | Everything L1 can do + escalate to L3 · receives High / Critical tickets by default              |
+| `agent_l3`  | Everything L2 can do · top-tier escalation endpoint                                               |
+| `admin`     | Full system access · manage all users · delete any ticket · all analytics and audit logs          |
 
 ---
 
-#### `POST /tickets/:id/resolve`
-Mark ticket as resolved.
+## Background Workers
 
-**Auth:** Agent / Admin
+| Queue                    | Triggered By                      | What It Does                                                       |
+| :----------------------- | :-------------------------------- | :----------------------------------------------------------------- |
+| `ticket-classification`  | New ticket created                | Re-scores ticket priority using description keywords               |
+| `auto-escalation`        | Cron — every 1 hour               | Escalates L1 to L2 and L2 to L3 when SLA thresholds are breached  |
+| `email-notifications`    | Ticket create / assign / resolve  | Sends notification email via Nodemailer                            |
+| `cleanup-archive`        | Cron — daily                      | Soft-deletes resolved or closed tickets older than 90 days         |
 
-**Response:** `200` → `{ ticket }`
-
----
-
-#### `POST /tickets/:id/reassign`
-Reassign ticket to another agent.
-
-**Auth:** Agent / Admin
-
-**Body:** `{ "agent_id": "<uuid>" }`
-
-**Response:** `200` → `{ ticket }`
+> **SLA defaults:** L1 to L2 after **24 h** · L2 to L3 after **48 h**
+> Thresholds are stored in Redis and configurable via `POST /escalations/rules`.
 
 ---
 
-#### `DELETE /tickets/:id`
-Soft-delete ticket (sets `deleted_at`, status → `deleted`).
+## Security
 
-**Auth:** Admin only
-
-**Response:** `200` → `{ message: "Ticket deleted" }`
-
----
-
-### Escalation Routes
-
-#### `GET /escalations`
-Full escalation history (with optional `ticket_id` filter).
-
-**Auth:** Admin / Agent
+- **Parameterized SQL** on every database query — zero string concatenation
+- **JWT access token** stored in memory (not `localStorage`); refresh token stored in Redis
+- Refresh token **deleted on logout**; access token **blacklisted** in Redis until it expires
+- **Helmet** sets security headers on every response
+- **Rate limiting:** 500 req / 15 min globally · 20 req / 15 min on all auth routes
+- **CORS** restricted to the value of `FRONTEND_URL`
+- **RBAC middleware** on every protected route — no route trusts client-supplied roles
+- `is_active` flag checked on every authenticated request
+- **Soft deletes** — ticket rows are never hard-deleted from the database
 
 ---
 
-#### `POST /escalations/rules`
-Update SLA escalation rules (stored in Redis).
+## Deployment
 
-**Auth:** Admin only
+### Step 1 — Database (Neon)
 
-**Body:** `{ "l1_to_l2_hours": 24, "l2_to_l3_hours": 48 }`
-
----
-
-#### `GET /escalations/rules`
-Get current escalation rules.
-
-**Auth:** Admin only
-
----
-
-### Dashboard Routes
-
-#### `GET /dashboard/customer`
-**Auth:** Customer
-
-Returns: `{ total, open, in_progress, escalated, resolved, closed, recent_tickets }`
-
----
-
-#### `GET /dashboard/agent`
-**Auth:** Agent
-
-Returns: `{ assigned, open_by_priority, resolved_today, escalated }`
-
----
-
-#### `GET /dashboard/admin`
-**Auth:** Admin
-
-Returns: `{ counts, agent_performance[], escalation_rate, daily_last_7_days[] }`
-
----
-
-### Analytics Routes
-
-#### `GET /analytics/tickets?days=30`
-**Auth:** Admin / Agent
-
-Returns: `{ daily[], by_priority[], by_status[], by_issue_type[], avg_resolution_hours, escalation_rate }`
-
----
-
-### Agent Routes
-
-#### `GET /agents/workload`
-**Auth:** Admin / Agent
-
-Returns each agent's open ticket count by priority.
-
----
-
-### Order Routes
-
-#### `GET /orders/:orderId`
-**Auth:** Customer (own orders) / Agent / Admin
-
-Returns order details including items JSON.
-
----
-
-#### `GET /orders/:orderId/payments`
-**Auth:** Customer (own orders) / Agent / Admin
-
-Returns payment records for the order.
-
----
-
-### Audit Routes
-
-#### `GET /audit/tickets/:id`
-**Auth:** Admin only
-
-Full audit trail for a specific ticket.
-
----
-
-#### `GET /audit/users/:id`
-**Auth:** Admin only
-
-All actions performed by a specific user.
-
----
-
-### Job Routes
-
-#### `GET /jobs/status/:jobId`
-**Auth:** Admin only
-
-Returns BullMQ job state (`waiting`, `active`, `completed`, `failed`).
-
----
-
-#### `GET /jobs/failed`
-**Auth:** Admin only
-
-Lists all failed jobs across all queues.
-
----
-
-#### `POST /jobs/retry/:jobId`
-**Auth:** Admin only
-
-Retry a specific failed job by ID.
-
----
-
-### Admin Routes
-
-#### `GET /admin/users`
-**Auth:** Admin only
-
-Paginated list of all users.
-
-**Query params:** `role`, `search`, `page`, `limit`
-
----
-
-#### `PATCH /admin/users/:id`
-**Auth:** Admin only
-
-Update user role and/or active status.
-
-**Body:** `{ "role": "agent_l2", "is_active": true }`
-
----
-
-## Role Summary
-
-| Role | Capabilities |
-|---|---|
-| `customer` | Create tickets for own orders; view/reply own tickets; view customer dashboard |
-| `agent_l1` | View assigned tickets; add messages (internal + external); escalate to L2; resolve |
-| `agent_l2` | Same as L1 + escalate to L3; assigned High/Critical tickets by default |
-| `agent_l3` | Same as L2; top-tier escalation target |
-| `admin` | Full access; manage users; soft-delete tickets; view all analytics + audit logs |
-
----
-
-## Queue Workers
-
-| Queue | Trigger | Action |
-|---|---|---|
-| `ticket-classification` | Ticket creation | Re-evaluate priority from description keywords |
-| `auto-escalation` | Every 1 hour (cron) | Escalate L1→L2 after 24h, L2→L3 after 48h |
-| `email-notifications` | Ticket create/assign/resolve | Send email to customer/agent via Nodemailer |
-| `cleanup-archive` | Daily cron | Soft-delete resolved/closed tickets older than 90 days |
-
-## Bonus Features Implemented
-
-- **Unit Tests (Jest + ts-jest):** 46 tests across 3 suites — `priority.test.ts`, `tokens.test.ts`, `escalation.test.ts` — covering keyword priority detection, JWT generation/verification, and SLA escalation rules. Run with `npm test` from the `backend/` directory.
-
----
-
-## Security Highlights
-
-- **Parameterized SQL** everywhere (no string concatenation)
-- **JWT access token** stored in memory on the client (not localStorage)
-- **Refresh token** stored in Redis on the server; deleted on logout
-- **Token blacklisting** on logout (access token added to Redis with TTL)
-- **Helmet** on all routes
-- **Rate limiting**: 500/15min globally, 20/15min on auth routes
-- **CORS** restricted to configured `FRONTEND_URL`
-- **RBAC** middleware on every protected route
-- **is_active** check on every authenticated request
-- **Soft deletes** — ticket rows are never hard-deleted
-
----
-
-## Deployment Instructions
-
-### 1. Database — Neon (Postgres)
 1. Create a project at [neon.tech](https://neon.tech)
-2. Copy the connection string
-3. Set as `DATABASE_URL` in your backend env vars
-4. Run: `DATABASE_URL="..." npm run migrate && npm run seed`
+2. Copy the connection string and set it as `DATABASE_URL`
+3. Run `npm run migrate && npm run seed`
 
-### 2. Redis — Upstash
+### Step 2 — Redis (Upstash)
+
 1. Create a Redis database at [upstash.com](https://upstash.com)
-2. Copy the `redis://` URL
-3. Set as `REDIS_URL` in backend env vars
+2. Copy the `rediss://` connection string and set it as `REDIS_URL`
 
-### 3. Backend — Render
-1. Connect GitHub repo, select `backend/` as root directory
-2. Build: `npm install && npm run build`
-3. Start: `npm start`
-4. Set all env vars in Render dashboard
+### Step 3 — Backend (Render)
+
+1. Connect your repo, set root directory to `backend/`
+2. **Build command:** `npm install && npm run build`
+3. **Start command:** `node dist/index.js`
+4. Add all environment variables in the Render dashboard
 5. Health check path: `/api/health`
+6. Add a **second Render service** for workers: `node dist/workers/index.js`
 
-### 4. Frontend — Vercel
-1. Import GitHub repo, set root to `frontend/`
-2. Set `NEXT_PUBLIC_API_URL` to your Render backend URL
-3. Deploy — Vercel auto-detects Next.js
+### Step 4 — Frontend (Vercel)
 
-### 5. Update CORS
-Set `FRONTEND_URL` on Render to your Vercel URL after it's deployed.
+1. Import the repo and set root directory to `frontend/`
+2. Add env var: `NEXT_PUBLIC_API_URL=<your-render-url>/api`
+3. Deploy — Next.js is auto-detected
+
+### Post-deploy checklist
+
+- [ ] Update `FRONTEND_URL` on Render to your Vercel domain
+- [ ] Update `GOOGLE_CALLBACK_URL` on Google Cloud Console and in Render env vars
+
+---
+
+## Project Structure
+
+```
+tick_management/
+├── backend/
+│   ├── src/
+│   │   ├── db/           # pg Pool + connection helper
+│   │   ├── middleware/   # auth, RBAC, error handler
+│   │   ├── queues/       # BullMQ queue definitions
+│   │   ├── routes/       # Express routers (one file per domain)
+│   │   ├── services/     # Business logic — priority, tokens, SLA
+│   │   ├── workers/      # BullMQ worker processes
+│   │   └── index.ts      # Application entry point
+│   ├── migrations/       # Raw SQL migration files
+│   ├── seeds/            # Seed data scripts
+│   └── tests/            # Jest test suites (46 tests)
+│
+└── frontend/
+    ├── app/
+    │   ├── (customer)/   # Customer dashboard + ticket views
+    │   ├── (agent)/      # Agent dashboard + queue management
+    │   ├── (admin)/      # Admin — users, analytics, job monitor
+    │   ├── auth/         # Login, register, OAuth callback
+    │   └── page.tsx      # Public landing page
+    ├── store/            # Zustand stores — auth, tickets
+    └── proxy.ts          # Next.js middleware — route protection
+```
+
+---
+
+<div align="center">
+
+Built with Next.js · Express · PostgreSQL · Redis · BullMQ
+
+</div>

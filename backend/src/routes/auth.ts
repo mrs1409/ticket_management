@@ -196,7 +196,7 @@ router.get(
 
     // Redirect to frontend with tokens in query (frontend should exchange immediately)
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?access=${accessToken}&refresh=${refreshToken}`);
+    res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
   }
 );
 

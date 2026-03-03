@@ -23,6 +23,7 @@ const redisConnection = {
       return url.password || undefined;
     } catch { return undefined; }
   })(),
+  tls: (process.env.REDIS_URL || '').startsWith('rediss://') ? {} : undefined,
 };
 
 export const ticketQueue = new Queue('ticket-classification', { connection: redisConnection });

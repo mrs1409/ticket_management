@@ -29,6 +29,7 @@ function OAuthCallbackInner() {
     // Store tokens
     setAccessToken(accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    document.cookie = 'has_session=1; path=/; SameSite=Lax';
 
     // Load user profile then redirect based on role
     loadUser().then(() => {

@@ -41,7 +41,7 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-1">Sign in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
@@ -49,6 +49,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="off"
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="you@example.com"
             />
@@ -61,6 +62,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="new-password"
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="••••••••"
             />
@@ -92,17 +94,7 @@ export default function LoginPage() {
           </Link>
         </p>
 
-        {/* Test Credentials Box */}
-        <div className="mt-6 bg-gray-50 rounded-lg p-4 text-xs text-gray-600">
-          <p className="font-semibold mb-2 text-gray-700">Test Credentials:</p>
-          <div className="space-y-1">
-            <p><span className="font-medium">Admin:</span> admin@ticketapp.com / Admin@123</p>
-            <p><span className="font-medium">Agent L1:</span> agent.l1a@ticketapp.com / AgentL1@123</p>
-            <p><span className="font-medium">Agent L2:</span> agent.l2@ticketapp.com / AgentL2@123</p>
-            <p><span className="font-medium">Agent L3:</span> agent.l3@ticketapp.com / AgentL3@123</p>
-            <p><span className="font-medium">Customer:</span> customer1@example.com / Customer@123</p>
-          </div>
-        </div>
+
       </div>
     </div>
   );
