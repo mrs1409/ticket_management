@@ -79,17 +79,20 @@ router.get('/tickets', async (req: AuthRequest, res: Response): Promise<void> =>
 
   const avgHours = (avgResolution.rows[0] as unknown as { avg_hours?: string | null })?.avg_hours;
 
+  const parseCount = (rows: { count: string | number; [key: string]: unknown }[]) =>
+    rows.map(r => ({ ...r, count: parseInt(String(r.count), 10) }));
+
   const payload = {
     // Keys used by admin dashboard
-    daily_created: dailyCreated.rows,
-    escalations_by_level: escalationByLevel.rows,
-    by_priority: byPriority.rows,
-    by_status: byStatus.rows,
+    daily_created: parseCount(dailyCreated.rows as { count: string | number; [key: string]: unknown }[]),
+    escalations_by_level: parseCount(escalationByLevel.rows as { count: string | number; [key: string]: unknown }[]),
+    by_priority: parseCount(byPriority.rows as { count: string | number; [key: string]: unknown }[]),
+    by_status: parseCount(byStatus.rows as { count: string | number; [key: string]: unknown }[]),
     avg_resolution_hours: parseFloat(avgHours || '0') || 0,
     // Extended keys for analytics page
-    daily: dailyCreated.rows,
-    by_escalation_level: escalationByLevel.rows,
-    by_issue_type: byIssueType.rows,
+    daily: parseCount(dailyCreated.rows as { count: string | number; [key: string]: unknown }[]),
+    by_escalation_level: parseCount(escalationByLevel.rows as { count: string | number; [key: string]: unknown }[]),
+    by_issue_type: parseCount(byIssueType.rows as { count: string | number; [key: string]: unknown }[]),
     escalation_rate: escRate,
     days_range: days,
   };
