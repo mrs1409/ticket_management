@@ -55,7 +55,7 @@ cp .env.example .env
 npm install
 npm run migrate    # Creates all tables + enums
 npm run seed       # Seeds 7 test users, sample orders, tickets
-npm run dev        # Start dev server on http://localhost:4000
+npm run dev        # Start dev server on http://localhost:5000
 ```
 
 To also start the BullMQ workers (required for queue processing):
@@ -91,7 +91,7 @@ npm run dev        # Start Next.js on http://localhost:3000
 
 | Variable | Description | Example |
 |---|---|---|
-| `PORT` | API server port | `4000` |
+| `PORT` | API server port | `5000` |
 | `NODE_ENV` | Environment | `development` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@localhost:5432/ticketdb` |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
@@ -100,7 +100,7 @@ npm run dev        # Start Next.js on http://localhost:3000
 | `FRONTEND_URL` | Allowed CORS origin | `http://localhost:3000` |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | from Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | from Google Cloud Console |
-| `GOOGLE_CALLBACK_URL` | OAuth redirect URI | `http://localhost:4000/api/auth/oauth/google/callback` |
+| `GOOGLE_CALLBACK_URL` | OAuth redirect URI | `http://localhost:5000/api/auth/oauth/google/callback` |
 | `SMTP_HOST` | SMTP host (leave blank for Ethereal auto) | `smtp.ethereal.email` |
 | `SMTP_PORT` | SMTP port | `587` |
 | `SMTP_USER` | SMTP username | `test@ethereal.email` |
@@ -111,7 +111,7 @@ npm run dev        # Start Next.js on http://localhost:3000
 
 | Variable | Description | Example |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:4000/api` |
+| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:5000/api` |
 
 ---
 
