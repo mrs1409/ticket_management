@@ -25,6 +25,10 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
+# Redis dump
+dump.rdb
+*.rdb
+
 # IDE
 .vscode/settings.json
 .idea/

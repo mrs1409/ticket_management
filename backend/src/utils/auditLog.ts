@@ -1,6 +1,18 @@
 import { query } from '../db/connection';
 import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * Write an immutable audit record for any critical action in the system.
+ * Non-fatal: logs errors internally without throwing, ensuring audit failures
+ * never disrupt the primary request flow.
+ *
+ * @param action_type  - Descriptive action label (e.g. 'ticket_create', 'user_login')
+ * @param user_id      - UUID of the acting user, or null for system-triggered events
+ * @param ticket_id    - UUID of the affected ticket, or null (e.g. auth events)
+ * @param before_state - Snapshot of relevant fields BEFORE the change
+ * @param after_state  - Snapshot of relevant fields AFTER the change
+ * @param ip_address   - Client IP for security traceability
+ */
 export async function auditLog(
   action_type: string,
   user_id: string | null,

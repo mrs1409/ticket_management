@@ -2,6 +2,10 @@ import jwt from 'jsonwebtoken';
 import { getRedisClient } from '../config/redis';
 import { JwtPayload, UserRole } from '../types';
 
+/**
+ * Generate a short-lived JWT access token (default 15 minutes).
+ * Payload includes userId, role, and email for RBAC and audit trail.
+ */
 export function generateAccessToken(userId: string, role: UserRole, email: string): string {
   return jwt.sign(
     { userId, role, email },
@@ -10,6 +14,10 @@ export function generateAccessToken(userId: string, role: UserRole, email: strin
   );
 }
 
+/**
+ * Generate a long-lived JWT refresh token (default 7 days).
+ * Stored in Redis keyed by userId — only one active refresh token per user.
+ */
 export function generateRefreshToken(userId: string, role: UserRole, email: string): string {
   return jwt.sign(
     { userId, role, email },
@@ -35,6 +43,11 @@ export async function deleteRefreshToken(userId: string): Promise<void> {
   await redis.del(`refresh:${userId}`);
 }
 
+/**
+ * Blacklist an access token in Redis until its natural expiry.
+ * Called on logout to immediately invalidate the token even before TTL expires.
+ * The authenticate middleware checks this blacklist on every request.
+ */
 export async function blacklistAccessToken(token: string): Promise<void> {
   const redis = getRedisClient();
   try {

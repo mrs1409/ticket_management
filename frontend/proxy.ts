@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Public routes that don't need authentication
+// Public routes that don't require authentication
 const PUBLIC_PATHS = ['/login', '/register', '/auth/callback'];
 
-// Role-based path prefixes
-const ROLE_PATHS: Record<string, string[]> = {
-  admin: ['/admin'],
-  agent_l1: ['/agent'],
-  agent_l2: ['/agent'],
-  agent_l3: ['/agent'],
-  customer: ['/dashboard', '/tickets'],
-};
-
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths and Next.js internals
@@ -26,9 +17,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for refresh token in localStorage via cookie (we store it as a JS-accessible cookie for middleware)
-  // The middleware can only read cookies, not localStorage, so we use a 'has_session' cookie
-  // set by the client after login to indicate a session exists.
+  // Check 'has_session' cookie set by the client after login
   const hasSession = request.cookies.get('has_session');
 
   if (!hasSession) {
@@ -41,6 +30,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Match all paths except static files
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.svg$).*)'],
 };

@@ -2,7 +2,20 @@ import { query } from '../db/connection';
 import { TicketPriority } from '../types';
 
 /**
- * Auto-assign agent based on priority:
+ * Auto-assign a ticket to the least-loaded eligible agent using load-based balancing.
+ *
+ * Assignment rules:
+ * - Critical / High priority → agent_l2 (these tickets skip L1)
+ * - payment issue_type       → agent_l2 (priority escalation per spec)
+ * - Low / Medium priority    → agent_l1 with fewest open tickets
+ *
+ * Falls back to any active agent of the target role if none have tickets yet.
+ * Returns null only if no agents of the required role exist.
+ *
+ * @param priority  - Auto-determined ticket priority
+ * @param issueType - Ticket category
+ * @returns UUID of the assigned agent, or null
+ *
  * - Critical/High → assign to agent_l2 with lowest open ticket count
  * - Low/Medium → assign to agent_l1 with lowest open ticket count (load-balancing)
  */

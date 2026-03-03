@@ -26,7 +26,7 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     setLoading(true);
-    api.get(`/analytics?days=${days}`)
+    api.get(`/analytics/tickets?days=${days}`)
       .then((r: { data: AnalyticsData }) => setData(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
