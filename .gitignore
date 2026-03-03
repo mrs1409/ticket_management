@@ -39,3 +39,7 @@ coverage/
 
 # TypeScript build info
 *.tsbuildinfo
+
+test_all.ps1
+backend/backend.err
+backend/backend.log
